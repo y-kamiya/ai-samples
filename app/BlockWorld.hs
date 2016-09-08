@@ -29,7 +29,7 @@ type Domain = [Action]
 data NodeInfo = NodeInfo { condition :: Condition
                          , action :: Action
                          , next :: NodeInfo
-                         , cost :: Int
+                         , realCost :: Int
                          , score :: Int
                          , diff :: [Condition]
                          , diffCount :: Int
@@ -37,10 +37,11 @@ data NodeInfo = NodeInfo { condition :: Condition
 
 main :: IO ()
 main = do
-  let startCondition = Condition Empty (M.fromList [(A, True), (B, False)]) (M.fromList [(A, B), (B, Table)])
-  let goalCondition  = Condition Empty (M.fromList [(A, False), (B, True)]) (M.fromList [(B, A), (A, Table)])
+  let startCondition = Condition Empty (M.fromList [(A, True), (B, False)]) (M.fromList [(A, Object B), (B, Table)])
+  let goalCondition  = Condition Empty (M.fromList [(A, False), (B, True)]) (M.fromList [(B, Object A), (A, Table)])
   mapM_ print buildDomain
   let plan = strips buildDomain startCondition goalCondition    
+  return ()
 
 
 buildDomain :: Domain
@@ -66,7 +67,7 @@ buildAction cost aType@(Unstack x y) = Action aType (buildPre x y) (buildPost x 
   where buildPre x y  = Condition Empty (M.fromList [(x,True),(y,False)]) (M.singleton x (Object y))
         buildPost x y = Condition (Has x) (M.fromList [(x,False),(y,True)]) (M.singleton x Hand)
 
-strips :: Domain -> Condition -> Condition -> [NodeInfo]
+strips :: Domain -> Condition -> Condition -> NodeInfo
 strips domain start goal = undefined
 
 searchPlan = undefined
