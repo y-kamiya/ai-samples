@@ -24,6 +24,7 @@ data Action = Action {
 , cost :: Int
 } deriving Show
 
+type Plan = [ActionType]
 type Domain = [Action]
 
 data NodeInfo = NodeInfo { condition :: Condition
@@ -67,7 +68,19 @@ buildAction cost aType@(Unstack x y) = Action aType (buildPre x y) (buildPost x 
   where buildPre x y  = Condition Empty (M.fromList [(x,True),(y,False)]) (M.singleton x (Object y))
         buildPost x y = Condition (Has x) (M.fromList [(x,False),(y,True)]) (M.singleton x Hand)
 
-strips :: Domain -> Condition -> Condition -> NodeInfo
-strips domain start goal = undefined
+strips :: Domain -> Condition -> Condition -> Plan
+strips domain start goal = extractPlan [] . searchPlan
+  where
+    extractPlan :: Plan -> NodeInfo -> Plan
+    extractPlan plan nodeInfo
+      | realCost nodeInfo == 0 = newPlan
+      | otherwise = extractPlan newPlan $ next nodeInfo
+      where
+        newPlan = (actionType nodeInfo) : plan
 
-searchPlan = undefined
+
+searchPlan :: Domain -> Condition -> Condition -> NodeInfo
+searchPlan = domain start goal = searchNext domain goal [start] [] 
+  where
+    searchNext :: Domain -> Condition -> [Condition] -> [Condition] -> NodeInfo
+    searchNext = undefined
