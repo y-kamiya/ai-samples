@@ -82,7 +82,10 @@ strips domain start goal = extractPlan [] . searchPlan
 
 
 searchPlan :: Domain -> Condition -> Condition -> NodeInfo
-searchPlan = domain start goal = searchNext domain goal [start] [] 
+searchPlan = domain start goal = searchNext domain goal [buildNodeInfo goal] [] 
   where
-    searchNext :: Domain -> Condition -> [Condition] -> [Condition] -> NodeInfo
-    searchNext = undefined
+    buildGoalNodeIfo = NodeInfo goal NoAction NoNodeInfo 0 score diff diffCount
+
+    searchNext :: Domain -> Condition -> [NodeInfo] -> [NodeInfo] -> NodeInfo
+    searchNext [] _ _ = NoNodeInfo
+    searchNext domain (nodeInfo:rest) closeList = undefined
