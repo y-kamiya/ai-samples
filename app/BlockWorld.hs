@@ -3,13 +3,15 @@ module Main where
 import qualified Data.Map as M
 
 data Block = A | B  deriving (Show, Eq, Ord, Enum)
-data HandState = Empty | Has Block deriving Show
-data Object = Hand | Table | Object Block deriving Show
-data Condition = Condition {
-  hand :: HandState
-, isTop :: M.Map Block Bool
-, on :: M.Map Block Object
-} deriving Show
+data Object = Table | Object Block deriving Show
+
+data HandState = HandEmpty | HandHas Block deriving Show
+data IsTop = IsTop Block Bool deriving Show
+data On = On Block Object deriving Show
+
+data Term = HandState | IsTop | On deriving Show
+
+type Condition = [Term]
 
 data ActionType = Pickup Block
                 | Putdown Block
@@ -32,14 +34,14 @@ data NodeInfo = NodeInfo { condition :: Condition
                          , next :: NodeInfo
                          , realCost :: Int
                          , score :: Int
-                         , diff :: [Condition]
+                         , diff :: Condition
                          , diffCount :: Int
                          } deriving Show
 
 main :: IO ()
 main = do
-  let startCondition = Condition Empty (M.fromList [(A, True), (B, False)]) (M.fromList [(A, Object B), (B, Table)])
-  let goalCondition  = Condition Empty (M.fromList [(A, False), (B, True)]) (M.fromList [(B, Object A), (A, Table)])
+  let startCondition = [HandEmpty, IsTop A True, IsTop B False, On A Object B, On B Table]
+  let goalCondition  = [HandEmpty IsTop A False, IsTop B True, On B Object A, On A Table]
   mapM_ print buildDomain
   let plan = strips buildDomain startCondition goalCondition    
   return ()
@@ -56,17 +58,17 @@ buildDomain = pickups ++ putdowns ++ stacks ++ unstacks
 
 buildAction :: Int -> ActionType -> Action
 buildAction cost aType@(Pickup x) = Action aType (buildPre x) (buildPost x) cost
-  where buildPre x  = Condition Empty (M.singleton x True) (M.singleton x Table)
-        buildPost x = Condition (Has x) (M.singleton x True) (M.singleton x Hand)
+  where buildPre x  = [HandEmpty, IsTop x True, On x Table]
+        buildPost x = [HandHas x, IsTop x True]
 buildAction cost aType@(Putdown x) = Action aType (buildPre x) (buildPost x) cost
-  where buildPre x  = Condition (Has x) (M.singleton x False) (M.singleton x Hand)
-        buildPost x = Condition Empty (M.singleton x True) (M.singleton x Table)
+  where buildPre x  = [HandHas x, IsTop x False]
+        buildPost x = [HandEmpty, IsTop x True, On x Table]
 buildAction cost aType@(Stack x y) = Action aType (buildPre x y) (buildPost x y) cost
-  where buildPre x y  = Condition (Has x) (M.fromList [(x,False),(y,True)]) (M.singleton x Hand)
-        buildPost x y = Condition Empty (M.fromList [(x,True),(y,False)]) (M.singleton x (Object y))
+  where buildPre x y  = [HandHas x, IsTop x False, IsTop y,True]
+        buildPost x y = [HandEmpty, IsTop x True, IsTop y,False, On x (Object y)]
 buildAction cost aType@(Unstack x y) = Action aType (buildPre x y) (buildPost x y) cost
-  where buildPre x y  = Condition Empty (M.fromList [(x,True),(y,False)]) (M.singleton x (Object y))
-        buildPost x y = Condition (Has x) (M.fromList [(x,False),(y,True)]) (M.singleton x Hand)
+  where buildPre x y  = [HandEmpty, IsTop x True, IsTop y False, On x (Object y)]
+        buildPost x y = [HandHas x, IsTop x False, IsTop y True]
 
 strips :: Domain -> Condition -> Condition -> Plan
 strips domain start goal = extractPlan [] . searchPlan
