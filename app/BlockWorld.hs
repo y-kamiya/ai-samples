@@ -1,15 +1,15 @@
 module Main where
 
-import qualified Data.Map as M
+import qualified Data.List as L
 
 data Block = A | B  deriving (Show, Eq, Ord, Enum)
-data Object = Table | Object Block deriving Show
+data Object = Table | Object Block deriving (Eq, Show)
 
 data Term = HandEmpty
           | HandHas Block
           | IsTop Block Bool
           | On Block Object
-          deriving Show
+          deriving (Eq, Show)
 
 type Condition = [Term]
 
@@ -19,17 +19,19 @@ data ActionType = Pickup Block
                 | Unstack Block Block
                 deriving Show
 
-data Action = Action {
-  actionType :: ActionType
-, precondition :: Condition
+data Action = NoAction
+            | Action {
+  actionType    :: ActionType
+, precondition  :: Condition
 , postcondition :: Condition
-, cost :: Int
+, cost          :: Int
 } deriving Show
 
 type Plan = [ActionType]
 type Domain = [Action]
 
-data NodeInfo = NodeInfo { condition :: Condition
+data NodeInfo = NoNodeInfo
+              | NodeInfo { condition :: Condition
                          , action    :: Action
                          , next      :: NodeInfo
                          , realCost  :: Int
@@ -82,10 +84,14 @@ strips domain start goal = extractPlan [] $ searchPlan domain start goal
 
 
 searchPlan :: Domain -> Condition -> Condition -> NodeInfo
-searchPlan domain start goal = searchNext domain goal [] [] 
+searchPlan domain start goal = searchNext domain goal [goalNodeInfo] [] 
   where
-    -- buildGoalNodeIfo = NodeInfo goal NoAction NoNodeInfo 0 score diff diffCount
+    (estimateCost, conditionDiff) = getConditionDiff start goal
+    goalNodeInfo = NodeInfo goal NoAction NoNodeInfo 0 estimateCost conditionDiff estimateCost
 
     searchNext :: Domain -> Condition -> [NodeInfo] -> [NodeInfo] -> NodeInfo
-    -- searchNext [] _ _ = NoNodeInfo
-    searchNext domain (nodeInfo:rest) closeList = undefined
+    searchNext _ [] _ _ = NoNodeInfo
+    searchNext domain goal (nodeInfo:rest) closeList = undefined
+
+getConditionDiff :: Condition -> Condition -> (Int, Condition)
+getConditionDiff cond1 cond2 = let diff = cond2 L.\\ cond1 in (length diff, diff)
