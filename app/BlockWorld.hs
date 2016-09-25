@@ -93,12 +93,18 @@ searchPlan domain start goal = searchNext domain goal [goalNodeInfo] []
     searchNext _ [] _ _ = NoNodeInfo
     searchNext domain goal openList@(nodeInfo:rest) closeList
       | diffCount nodeInfo == 0 = nodeInfo
-      | otherwise = searchNext domain goal (buildOpenList openList) (nodeInfo:closeList)
+      | otherwise = searchNext domain goal (buildOpenList openList closeList) (nodeInfo:closeList)
 
-    buildOpenList :: [NodeInfo] -> [NodeInfo] 
-    buildOpenList (nodeInfo:rest) = sort $ mergeNodes rest $ getNextNodes nodeInfo 
+    buildOpenList :: [NodeInfo] -> [NodeInfo] -> [NodeInfo] 
+    buildOpenList (nodeInfo:rest) closeList = sort $ mergeNodes rest closeList $ getNextNodes nodeInfo 
 
-    mergeNodes :: [NodeInfo] -> [NodeInfo] -> [NodeInfo]
+    -- should use Map
+    mergeNodes :: [NodeInfo] -> [NodeInfo] -> [NodeInfo] -> [NodeInfo]
+    mergeNodes openList closeList newNodes = flip map (newNodes \\ closeList) $ \nodeInfo -> 
+      case findBy equals nodeInfo openList of
+        Just node -> if score nodeInfo < score node then nodeInfo else node
+        Nothing -> nodeInfo
+      where equals n1 n2 = sort (condition n1) == sort (condition n2)
 
     getNextNodes :: NodeInfo -> [NodeInfo]
     getNextNodes nodeInfo = map (buildNodeInfo nodeInfo) $ filter include domain
