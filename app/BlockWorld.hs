@@ -1,6 +1,6 @@
 module Main where
 
-import qualified Data.List as L
+import Data.List ((\\), null, union)
 
 data Block = A | B  deriving (Show, Eq, Ord, Enum)
 data Object = Table | Object Block deriving (Eq, Show)
@@ -22,9 +22,9 @@ data ActionType = Pickup Block
 data Action = NoAction
             | Action {
   actionType    :: ActionType
-, precondition  :: Condition
-, postcondition :: Condition
-, cost          :: Int
+, preCondition  :: Condition
+, postCondition :: Condition
+, actionCost    :: Int
 } deriving Show
 
 type Plan = [ActionType]
@@ -91,7 +91,31 @@ searchPlan domain start goal = searchNext domain goal [goalNodeInfo] []
 
     searchNext :: Domain -> Condition -> [NodeInfo] -> [NodeInfo] -> NodeInfo
     searchNext _ [] _ _ = NoNodeInfo
-    searchNext domain goal (nodeInfo:rest) closeList = undefined
+    searchNext domain goal openList@(nodeInfo:rest) closeList
+      | diffCount nodeInfo == 0 = nodeInfo
+      | otherwise = searchNext domain goal (buildOpenList openList) (nodeInfo:closeList)
+
+    buildOpenList :: [NodeInfo] -> [NodeInfo] 
+    buildOpenList (nodeInfo:rest) = sort $ mergeNodes rest $ getNextNodes nodeInfo 
+
+    mergeNodes :: [NodeInfo] -> [NodeInfo] -> [NodeInfo]
+
+    getNextNodes :: NodeInfo -> [NodeInfo]
+    getNextNodes nodeInfo = map (buildNodeInfo nodeInfo) $ filter include domain
+      where include action = null $ postCondition action \\ condition nodeInfo
+
+    buildNodeInfo :: NodeInfo -> Action -> NodeInfo
+    buildNodeInfo nodeInfo action = NodeInfo newCondition action nodeInfo score rCost diff eCost
+      where newCondition = snd $ getConditionDiff (condition nodeInfo) (postCondition action) `union` preCondition action
+            (eCost, diff) = getConditionDiff newCondition start
+            rCost = realCost nodeInfo + actionCost action
+            score = rCost + eCost
+            
 
 getConditionDiff :: Condition -> Condition -> (Int, Condition)
-getConditionDiff cond1 cond2 = let diff = cond2 L.\\ cond1 in (length diff, diff)
+getConditionDiff cond1 cond2 = let diff = cond2 \\ cond1 in (length diff, diff)
+
+
+
+
+
