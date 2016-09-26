@@ -1,6 +1,8 @@
 module Main where
 
-import Data.List ((\\), null, union)
+import Data.List ((\\), null, union, sortBy)
+import Data.Function (on)
+import qualified Data.Map as M
 
 data Block = A | B  deriving (Show, Eq, Ord, Enum)
 data Object = Table | Object Block deriving (Eq, Show)
@@ -96,15 +98,15 @@ searchPlan domain start goal = searchNext domain goal [goalNodeInfo] []
       | otherwise = searchNext domain goal (buildOpenList openList closeList) (nodeInfo:closeList)
 
     buildOpenList :: [NodeInfo] -> [NodeInfo] -> [NodeInfo] 
-    buildOpenList (nodeInfo:rest) closeList = sort $ mergeNodes rest closeList $ getNextNodes nodeInfo 
+    buildOpenList (nodeInfo:rest) closeList = sortBy (compare `on` score) $ mergeNodes rest closeList $ getNextNodes nodeInfo 
 
-    -- should use Map
     mergeNodes :: [NodeInfo] -> [NodeInfo] -> [NodeInfo] -> [NodeInfo]
-    mergeNodes openList closeList newNodes = flip map (newNodes \\ closeList) $ \nodeInfo -> 
-      case findBy equals nodeInfo openList of
-        Just node -> if score nodeInfo < score node then nodeInfo else node
-        Nothing -> nodeInfo
-      where equals n1 n2 = sort (condition n1) == sort (condition n2)
+    mergeNodes openList closeList newNodes = M.elems $ M.unionWith replaceByCondition openMap $ newNodeMap M.\\ closeMap
+      where openMap    = M.fromList $ map toTuple openList
+            closeMap   = M.fromList $ map toTuple closeList
+            newNodeMap = M.fromList $ map toTuple newNodes
+            toTuple nodeInfo = (sort $ condition nodeInfo, nodeInfo)
+            replaceByCondition old new = if score old < score new then old else new
 
     getNextNodes :: NodeInfo -> [NodeInfo]
     getNextNodes nodeInfo = map (buildNodeInfo nodeInfo) $ filter include domain
