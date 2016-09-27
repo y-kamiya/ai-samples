@@ -1,17 +1,17 @@
 module Main where
 
-import Data.List ((\\), null, union, sortBy)
+import Data.List ((\\), null, union, sort, sortBy)
 import Data.Function (on)
 import qualified Data.Map as M
 
 data Block = A | B  deriving (Show, Eq, Ord, Enum)
-data Object = Table | Object Block deriving (Eq, Show)
+data Object = Table | Object Block deriving (Eq, Ord, Show)
 
 data Term = HandEmpty
           | HandHas Block
           | IsTop Block Bool
           | On Block Object
-          deriving (Eq, Show)
+          deriving (Eq, Ord, Show)
 
 type Condition = [Term]
 
@@ -47,8 +47,10 @@ main = do
   let startCondition = [HandEmpty, IsTop A True, IsTop B False, On A (Object B), On B Table]
   let goalCondition  = [HandEmpty, IsTop A False, IsTop B True, On B (Object A), On A Table]
   mapM_ print buildDomain
-  -- let plan = strips buildDomain startCondition goalCondition    
-  -- return ()
+  let plan = strips buildDomain startCondition goalCondition    
+  print "------------- plan ----------------"
+  mapM_ print plan
+  return ()
 
 
 buildDomain :: Domain
@@ -78,24 +80,22 @@ strips :: Domain -> Condition -> Condition -> Plan
 strips domain start goal = extractPlan [] $ searchPlan domain start goal
   where
     extractPlan :: Plan -> NodeInfo -> Plan
-    extractPlan plan nodeInfo
-      | realCost nodeInfo == 0 = newPlan
-      | otherwise = extractPlan newPlan $ next nodeInfo
-      where
-        newPlan = (actionType $ action nodeInfo) : plan
+    extractPlan plan NoNodeInfo = plan
+    extractPlan plan nodeInfo = extractPlan newPlan $ next nodeInfo
+      where newPlan = (actionType $ action nodeInfo) : plan
 
 
 searchPlan :: Domain -> Condition -> Condition -> NodeInfo
-searchPlan domain start goal = searchNext domain goal [goalNodeInfo] [] 
+searchPlan domain start goal = searchNext [goalNodeInfo] [] 
   where
     (estimateCost, conditionDiff) = getConditionDiff start goal
     goalNodeInfo = NodeInfo goal NoAction NoNodeInfo 0 estimateCost conditionDiff estimateCost
 
-    searchNext :: Domain -> Condition -> [NodeInfo] -> [NodeInfo] -> NodeInfo
-    searchNext _ [] _ _ = NoNodeInfo
-    searchNext domain goal openList@(nodeInfo:rest) closeList
+    searchNext :: [NodeInfo] -> [NodeInfo] -> NodeInfo
+    searchNext [] _ = NoNodeInfo
+    searchNext openList@(nodeInfo:rest) closeList
       | diffCount nodeInfo == 0 = nodeInfo
-      | otherwise = searchNext domain goal (buildOpenList openList closeList) (nodeInfo:closeList)
+      | otherwise = searchNext (buildOpenList openList closeList) (nodeInfo:closeList)
 
     buildOpenList :: [NodeInfo] -> [NodeInfo] -> [NodeInfo] 
     buildOpenList (nodeInfo:rest) closeList = sortBy (compare `on` score) $ mergeNodes rest closeList $ getNextNodes nodeInfo 
@@ -114,12 +114,11 @@ searchPlan domain start goal = searchNext domain goal [goalNodeInfo] []
 
     buildNodeInfo :: NodeInfo -> Action -> NodeInfo
     buildNodeInfo nodeInfo action = NodeInfo newCondition action nodeInfo score rCost diff eCost
-      where newCondition = snd $ getConditionDiff (condition nodeInfo) (postCondition action) `union` preCondition action
+      where newCondition = (snd $ getConditionDiff (condition nodeInfo) (postCondition action)) `union` preCondition action
             (eCost, diff) = getConditionDiff newCondition start
             rCost = realCost nodeInfo + actionCost action
             score = rCost + eCost
             
-
 getConditionDiff :: Condition -> Condition -> (Int, Condition)
 getConditionDiff cond1 cond2 = let diff = cond2 \\ cond1 in (length diff, diff)
 
