@@ -100,14 +100,6 @@ searchPlan domain start goal = searchNext [goalNodeInfo] []
     buildOpenList :: [NodeInfo] -> [NodeInfo] -> [NodeInfo] 
     buildOpenList (nodeInfo:rest) closeList = sortBy (compare `on` score) $ mergeNodes rest closeList $ getNextNodes nodeInfo 
 
-    mergeNodes :: [NodeInfo] -> [NodeInfo] -> [NodeInfo] -> [NodeInfo]
-    mergeNodes openList closeList newNodes = M.elems $ M.unionWith replaceByCondition openMap $ newNodeMap M.\\ closeMap
-      where openMap    = M.fromList $ map toTuple openList
-            closeMap   = M.fromList $ map toTuple closeList
-            newNodeMap = M.fromList $ map toTuple newNodes
-            toTuple nodeInfo = (sort $ condition nodeInfo, nodeInfo)
-            replaceByCondition old new = if score old < score new then old else new
-
     getNextNodes :: NodeInfo -> [NodeInfo]
     getNextNodes nodeInfo = map (buildNodeInfo nodeInfo) $ filter include domain
       where include action = null $ postCondition action \\ condition nodeInfo
@@ -122,6 +114,13 @@ searchPlan domain start goal = searchNext [goalNodeInfo] []
 getConditionDiff :: Condition -> Condition -> (Int, Condition)
 getConditionDiff cond1 cond2 = let diff = cond2 \\ cond1 in (length diff, diff)
 
+mergeNodes :: [NodeInfo] -> [NodeInfo] -> [NodeInfo] -> [NodeInfo]
+mergeNodes openList closeList newNodes = M.elems $ M.unionWith replaceByCondition openMap $ newNodeMap M.\\ closeMap
+  where openMap    = M.fromList $ map toTuple openList
+        closeMap   = M.fromList $ map toTuple closeList
+        newNodeMap = M.fromList $ map toTuple newNodes
+        toTuple nodeInfo = (sort $ condition nodeInfo, nodeInfo)
+        replaceByCondition old new = if score old < score new then old else new
 
 
 
