@@ -65,7 +65,7 @@ buildDomain = pickups ++ putdowns ++ stacks ++ unstacks
 buildAction :: Int -> ActionType -> Action
 buildAction cost aType@(Pickup x) = Action aType (buildPre x) (buildPost x) cost
   where buildPre x  = [HandEmpty, IsTop x True, On x Table]
-        buildPost x = [HandHas x, IsTop x True]
+        buildPost x = [HandHas x, IsTop x False]
 buildAction cost aType@(Putdown x) = Action aType (buildPre x) (buildPost x) cost
   where buildPre x  = [HandHas x, IsTop x False]
         buildPost x = [HandEmpty, IsTop x True, On x Table]
