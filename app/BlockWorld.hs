@@ -47,8 +47,14 @@ main = do
   let startCondition = [HandEmpty, IsTop A True, IsTop B False, On A (Object B), On B Table]
   let goalCondition  = [HandEmpty, IsTop A False, IsTop B True, On B (Object A), On A Table]
   mapM_ print buildDomain
-  let plan = strips buildDomain startCondition goalCondition    
+  -- let plan = strips buildDomain startCondition goalCondition    
   print "------------- plan ----------------"
+
+  let (estimateCost, conditionDiff) = getConditionDiff startCondition goalCondition
+      goalNodeInfo = NodeInfo goalCondition NoAction NoNodeInfo 0 estimateCost conditionDiff estimateCost
+      (nodeInfo:rest) = getNextNodes buildDomain startCondition goalNodeInfo 
+      (nodeInfo2:_) = getNextNodes buildDomain startCondition nodeInfo 
+      all@(nodeInfo3:_) = getNextNodes buildDomain startCondition nodeInfo2
   mapM_ print plan
   return ()
 
@@ -122,6 +128,17 @@ mergeNodes openList closeList newNodes = M.elems $ M.unionWith replaceByConditio
         toTuple nodeInfo = (sort $ condition nodeInfo, nodeInfo)
         replaceByCondition old new = if score old < score new then old else new
 
+getNextNodes :: Domain -> Condition -> NodeInfo -> [NodeInfo]
+getNextNodes domain start nodeInfo = map (buildNodeInfo start nodeInfo) $ filter include domain
+  where include action = null $ postCondition action \\ condition nodeInfo
+
+buildNodeInfo :: Condition -> NodeInfo -> Action ->  NodeInfo
+buildNodeInfo start nodeInfo action = NodeInfo newCondition action nodeInfo score rCost diff eCost
+  where newCondition = (snd $ getConditionDiff (condition nodeInfo) (postCondition action)) `union` preCondition action
+        (eCost, diff) = getConditionDiff newCondition start
+        rCost = realCost nodeInfo + actionCost action
+        score = rCost + eCost
+            
 
 
 
