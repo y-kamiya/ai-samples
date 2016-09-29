@@ -68,12 +68,12 @@ buildAction cost aType@(Unstack x y) = Action aType (buildPre x y) (buildPost x 
 
 strips :: Domain -> Condition -> Condition -> Plan
 strips domain start goal = extractPlan [] $ searchPlan domain start goal
-  where
-    extractPlan :: Plan -> NodeInfo -> Plan
-    extractPlan plan NoNodeInfo = plan
-    extractPlan plan nodeInfo = extractPlan newPlan $ next nodeInfo
-      where newPlan = (actionType $ action nodeInfo) : plan
 
+extractPlan :: Plan -> NodeInfo -> Plan
+extractPlan plan nodeInfo 
+  | action nodeInfo == NoAction = plan
+  | otherwise = extractPlan newPlan $ next nodeInfo
+  where newPlan = actionType (action nodeInfo) : plan
 
 searchPlan :: Domain -> Condition -> Condition -> NodeInfo
 searchPlan domain start goal = searchNext [goalNodeInfo] [] 
@@ -91,8 +91,7 @@ searchPlan domain start goal = searchNext [goalNodeInfo] []
     buildOpenList (nodeInfo:rest) closeList = sortBy (compare `on` score) $ mergeNodes rest closeList $ getNextNodes nodeInfo 
 
     getNextNodes :: NodeInfo -> [NodeInfo]
-    getNextNodes nodeInfo = map (buildNodeInfo nodeInfo) $ filter include domain
-      where include action = null $ postCondition action \\ condition nodeInfo
+    getNextNodes nodeInfo = map (buildNodeInfo nodeInfo) $ getActionCandidates domain nodeInfo
 
     buildNodeInfo :: NodeInfo -> Action -> NodeInfo
     buildNodeInfo nodeInfo action = NodeInfo newCondition action nodeInfo score rCost diff eCost
@@ -112,9 +111,12 @@ mergeNodes openList closeList newNodes = M.elems $ M.unionWith replaceByConditio
         toTuple nodeInfo = (sort $ condition nodeInfo, nodeInfo)
         replaceByCondition old new = if score old < score new then old else new
 
-getNextNodes :: Domain -> Condition -> NodeInfo -> [NodeInfo]
-getNextNodes domain start nodeInfo = map (buildNodeInfo start nodeInfo) $ filter include domain
+getActionCandidates :: Domain -> NodeInfo -> [Action]
+getActionCandidates domain nodeInfo = filter include domain
   where include action = null $ postCondition action \\ condition nodeInfo
+
+getNextNodes :: Domain -> Condition -> NodeInfo -> [NodeInfo]
+getNextNodes domain start nodeInfo = map (buildNodeInfo start nodeInfo) $ getActionCandidates domain nodeInfo
 
 buildNodeInfo :: Condition -> NodeInfo -> Action ->  NodeInfo
 buildNodeInfo start nodeInfo action = NodeInfo newCondition action nodeInfo score rCost diff eCost

@@ -20,6 +20,18 @@ main = hspec $ do
           n4 = buildTestNodeInfo 1 [HandHas A]
           n5 = buildTestNodeInfo 5 [On A Table]
       mergeNodes [n1, n2] [n3] [n3, n4, n5] `shouldBe` [n1, n4, n5]
+
+  describe "getActionCandidates" $ do
+    let extractActionTypes nodeInfo = map actionType $ getActionCandidates buildDomain nodeInfo
+    it "gets []" $ do
+      let n = buildTestNodeInfo 0 []
+      extractActionTypes n `shouldBe` []
+    it "gets [Pickup A]" $ do
+      let n = buildTestNodeInfo 0 [HandHas A, IsTop A False]
+      extractActionTypes n `shouldBe` [Pickup A]
+    it "gets [Pickup A, Unstack A B]" $ do
+      let n = buildTestNodeInfo 0 [HandHas A, IsTop A False, IsTop B True]
+      extractActionTypes n `shouldBe` [Pickup A, Unstack A B]
   
 buildTestNodeInfo score condition = NodeInfo condition NoAction NoNodeInfo score 0 [] 0
       
