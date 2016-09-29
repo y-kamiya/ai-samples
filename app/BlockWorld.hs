@@ -14,7 +14,11 @@ main = do
       goalNodeInfo = NodeInfo goalCondition NoAction NoNodeInfo 0 estimateCost conditionDiff estimateCost
       (nodeInfo:rest) = getNextNodes buildDomain startCondition goalNodeInfo 
       (nodeInfo2:_) = getNextNodes buildDomain startCondition nodeInfo 
-      all@(nodeInfo3:_) = getNextNodes buildDomain startCondition nodeInfo2
-  mapM_ print all
+      a@(nodeInfo3:_) = getNextNodes buildDomain startCondition nodeInfo2
+      (nodeInfo4:_) = getNextNodes buildDomain startCondition nodeInfo3
+      all@(nodeInfo5:[]) = getNextNodes buildDomain startCondition nodeInfo4
+  mapM_ print $ extractPlan [] nodeInfo5
+  mapM_ print a
+  -- mapM_ print all
   return ()
 
