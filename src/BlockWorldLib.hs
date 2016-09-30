@@ -101,7 +101,7 @@ searchPlan domain start goal = searchNext [goalNodeInfo] []
             score = rCost + eCost
             
 getConditionDiff :: Condition -> Condition -> (Int, Condition)
-getConditionDiff cond1 cond2 = let diff = cond2 \\ cond1 in (length diff, diff)
+getConditionDiff dest src = let diff = dest \\ src in (length diff, diff)
 
 mergeNodes :: [NodeInfo] -> [NodeInfo] -> [NodeInfo] -> [NodeInfo]
 mergeNodes openList closeList newNodes = M.elems $ M.unionWith replaceByCondition openMap $ newNodeMap M.\\ closeMap
