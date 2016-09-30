@@ -33,13 +33,13 @@ type Plan = [ActionType]
 type Domain = [Action]
 
 data NodeInfo = NoNodeInfo
-              | NodeInfo { condition :: Condition
-                         , action    :: Action
-                         , next      :: NodeInfo
-                         , realCost  :: Int
+              | NodeInfo { realCost  :: Int
                          , score     :: Int
                          , diff      :: Condition
                          , diffCount :: Int
+                         , condition :: Condition
+                         , action    :: Action
+                         , next      :: NodeInfo
                          } deriving (Eq, Show)
 
 
@@ -76,10 +76,10 @@ extractPlan plan nodeInfo
   where newPlan = actionType (action nodeInfo) : plan
 
 searchPlan :: Domain -> Condition -> Condition -> NodeInfo
-searchPlan domain start goal = searchNext [goalNodeInfo] [] 
+searchPlan domain start goal = searchNext [goalNodeInfo] []
   where
     (estimateCost, conditionDiff) = getConditionDiff start goal
-    goalNodeInfo = NodeInfo goal NoAction NoNodeInfo 0 estimateCost conditionDiff estimateCost
+    goalNodeInfo = NodeInfo 0 estimateCost conditionDiff estimateCost goal NoAction NoNodeInfo
 
     searchNext :: [NodeInfo] -> [NodeInfo] -> NodeInfo
     searchNext [] _ = NoNodeInfo
@@ -87,19 +87,19 @@ searchPlan domain start goal = searchNext [goalNodeInfo] []
       | diffCount nodeInfo == 0 = nodeInfo
       | otherwise = searchNext (buildOpenList openList closeList) (nodeInfo:closeList)
 
-    buildOpenList :: [NodeInfo] -> [NodeInfo] -> [NodeInfo] 
-    buildOpenList (nodeInfo:rest) closeList = sortBy (compare `on` score) $ mergeNodes rest closeList $ getNextNodes nodeInfo 
+    buildOpenList :: [NodeInfo] -> [NodeInfo] -> [NodeInfo]
+    buildOpenList (nodeInfo:rest) closeList = sortBy (compare `on` score) $ mergeNodes rest closeList $ getNextNodes nodeInfo
 
     getNextNodes :: NodeInfo -> [NodeInfo]
     getNextNodes nodeInfo = map (buildNodeInfo nodeInfo) $ getActionCandidates domain nodeInfo
 
     buildNodeInfo :: NodeInfo -> Action -> NodeInfo
-    buildNodeInfo nodeInfo action = NodeInfo newCondition action nodeInfo score rCost diff eCost
+    buildNodeInfo nodeInfo action = NodeInfo score rCost diff eCost newCondition action nodeInfo
       where newCondition = (snd $ getConditionDiff (condition nodeInfo) (postCondition action)) `union` preCondition action
             (eCost, diff) = getConditionDiff newCondition start
             rCost = realCost nodeInfo + actionCost action
             score = rCost + eCost
-            
+
 getConditionDiff :: Condition -> Condition -> (Int, Condition)
 getConditionDiff dest src = let diff = dest \\ src in (length diff, diff)
 
