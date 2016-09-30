@@ -10,7 +10,7 @@ main = hspec $ do
     it "returns diff and diff count of the two lists as tuple (both have same entry)" $ do
       getConditionDiff [HandEmpty] [HandEmpty] `shouldBe` (0, [])
     it "returns diff and diff count of the two lists as tuple" $ do
-      getConditionDiff [HandEmpty, IsTop A True] [HandEmpty, On A Table, IsTop A True] `shouldBe` (1, [On A Table])
+      getConditionDiff [HandEmpty, IsTop A True, On A Table, On B (Object A)] [HandEmpty, IsTop A True, On B Table, On A (Object B)] `shouldBe` (2, [On A Table, On B (Object A)])
 
   describe "mergeNodes " $ do
     it "merges two nodeInfos of first and third argument except the element in second argument" $ do
@@ -32,6 +32,9 @@ main = hspec $ do
     it "gets [Pickup A, Unstack A B]" $ do
       let n = buildTestNodeInfo 0 [HandHas A, IsTop A False, IsTop B True]
       extractActionTypes n `shouldBe` [Pickup A, Unstack A B]
-  
-buildTestNodeInfo score condition = NodeInfo condition NoAction NoNodeInfo score 0 [] 0
-      
+    it "gets [Putdown A, Putdown B]" $ do
+      let n = buildTestNodeInfo 0 [HandEmpty, IsTop A True, IsTop B True, On A Table, On B Table]
+      extractActionTypes n `shouldBe` [Putdown A, Putdown B]
+
+buildTestNodeInfo score condition = NodeInfo score 0 [] 0 condition NoAction NoNodeInfo
+

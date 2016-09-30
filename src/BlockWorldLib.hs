@@ -115,16 +115,4 @@ getActionCandidates :: Domain -> NodeInfo -> [Action]
 getActionCandidates domain nodeInfo = filter include domain
   where include action = null $ postCondition action \\ condition nodeInfo
 
-getNextNodes :: Domain -> Condition -> NodeInfo -> [NodeInfo]
-getNextNodes domain start nodeInfo = map (buildNodeInfo start nodeInfo) $ getActionCandidates domain nodeInfo
-
-buildNodeInfo :: Condition -> NodeInfo -> Action ->  NodeInfo
-buildNodeInfo start nodeInfo action = NodeInfo newCondition action nodeInfo score rCost diff eCost
-  where newCondition = (snd $ getConditionDiff (condition nodeInfo) (postCondition action)) `union` preCondition action
-        (eCost, diff) = getConditionDiff newCondition start
-        rCost = realCost nodeInfo + actionCost action
-        score = rCost + eCost
-            
-
-
 
