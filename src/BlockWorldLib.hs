@@ -70,8 +70,8 @@ strips :: Domain -> Condition -> Condition -> Plan
 strips domain start goal = extractPlan [] $ searchPlan domain start goal
 
 extractPlan :: Plan -> NodeInfo -> Plan
-extractPlan plan nodeInfo 
-  | action nodeInfo == NoAction = plan
+extractPlan plan nodeInfo
+  | action nodeInfo == NoAction = reverse plan
   | otherwise = extractPlan newPlan $ next nodeInfo
   where newPlan = actionType (action nodeInfo) : plan
 
