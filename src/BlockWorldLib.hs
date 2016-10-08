@@ -1,10 +1,16 @@
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE QuasiQuotes #-}
+
 module BlockWorldLib where
 
 import Data.List ((\\), null, union, sort, sortBy)
 import Data.Function (on)
 import qualified Data.Map as M
 
-data Block = A | B  deriving (Show, Eq, Ord, Enum)
+import BlockWorldType
+
+-- data Block = A | B  deriving (Show, Eq, Ord, Enum)
+$(deriveBlock) 
 data Object = Table | Object Block deriving (Eq, Ord, Show)
 
 data Term = HandEmpty
