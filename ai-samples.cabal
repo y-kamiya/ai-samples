@@ -17,9 +17,11 @@ library
   hs-source-dirs:      src
   exposed-modules:     BlockWorldLib
                      , BlockWorldType
+                     , Strips
   build-depends:       base >= 4.7 && < 5
                      , containers
                      , template-haskell
+                     , mtl
   default-language:    Haskell2010
 
 executable block-world-exe
