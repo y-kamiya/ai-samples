@@ -3,20 +3,25 @@ module Main where
 import BlockWorldType
 import Strips
 
--- data Block = A | B  deriving (Show, Eq, Ord, Enum)
-$(deriveBlock) 
+data Block = A | B  deriving (Show, Eq, Ord, Enum)
+-- $(deriveBlock) 
 data Object = Table | Object Block deriving (Eq, Ord, Show)
 
-data Term = HandEmpty
+data BWTerm = HandEmpty
           | HandHas Block
           | IsTop Block Bool
           | On Block Object
           deriving (Eq, Ord, Show)
-data ActionType = Pickup Block
+
+data BWActionType = Pickup Block
                 | Putdown Block
                 | Stack Block Block
                 | Unstack Block Block
                 deriving (Eq, Show)
+
+instance ActionType BWActionType
+instance Term BWTerm
+
 
 main :: IO ()
 main = do
@@ -32,7 +37,7 @@ main = do
   mapM_ print plan
   return ()
 
-buildDomain :: Domain
+buildDomain :: [Action BWActionType BWTerm]
 buildDomain = pickups ++ putdowns ++ stacks ++ unstacks
   where
     pickups  = map (buildAction 1 . Pickup) [A ..]
@@ -41,7 +46,7 @@ buildDomain = pickups ++ putdowns ++ stacks ++ unstacks
     unstacks = map (buildAction 1 . uncurry Unstack) perms
     perms = [(x, y) | x <- [A ..], y <- [A ..], x /= y]
 
-buildAction :: Int -> ActionType -> Action
+buildAction :: Int -> BWActionType -> Action BWActionType BWTerm
 buildAction cost aType@(Pickup x) = Action aType (buildPre x) (buildPost x) cost
   where buildPre x  = [HandEmpty, IsTop x True, On x Table]
         buildPost x = [HandHas x, IsTop x False]

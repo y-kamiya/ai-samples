@@ -3,6 +3,7 @@ module Strips where
 import Data.List ((\\), null, union, sort, sortBy)
 import Data.Function (on)
 import qualified Data.Map as M
+import Control.Monad.Reader
 
 class (Eq a, Show a ) => ActionType a
 
@@ -27,38 +28,51 @@ data NodeInfo a b = NoNodeInfo
                     , next      :: NodeInfo a b
                     } deriving (Eq, Show)
 
+data Env a b = Env { envDomain :: [Action a b]
+                   , envStart :: [b]
+                   , envGoal :: [b]
+                   }
+             
 
 strips :: (ActionType a, Term b) => [Action a b] -> [b] -> [b] -> [a]
-strips domain start goal = extractPlan [] $ searchPlan domain start goal
+strips domain start goal = extractPlan [] $ runReader searchPlan $ Env domain start goal
 
 extractPlan :: (ActionType a, Term b) => [a] -> NodeInfo a b -> [a]
 extractPlan plan NodeInfo { action = NoAction } = reverse plan
 extractPlan plan NodeInfo { action = Action { actionType = actionType}, next = next } = extractPlan (actionType:plan) next
 
-searchPlan :: (ActionType a, Term b) => [Action a b] -> [b] -> [b] -> NodeInfo a b
-searchPlan domain start goal = searchNext [goalNodeInfo] []
-  where
-    (estimateCost, conditionDiff) = getConditionDiff start goal
-    goalNodeInfo = NodeInfo 0 estimateCost conditionDiff estimateCost goal NoAction NoNodeInfo
+searchPlan :: (ActionType a, Term b) => Reader (Env a b) (NodeInfo a b)
+searchPlan = buildGoalNodeInfo >>= (\goalNodeInfo -> searchNext [goalNodeInfo] [])
 
-    searchNext :: (ActionType a, Term b) => [NodeInfo a b] -> [NodeInfo a b] -> NodeInfo a b
-    searchNext [] _ = NoNodeInfo
-    searchNext openList@(nodeInfo:rest) closeList
-      | diffCount nodeInfo == 0 = nodeInfo
-      | otherwise = searchNext (buildOpenList openList closeList) (nodeInfo:closeList)
+searchNext :: (ActionType a, Term b) => [NodeInfo a b] -> [NodeInfo a b] -> Reader (Env a b) (NodeInfo a b)
+searchNext [] _ = return NoNodeInfo
+searchNext openList@(nodeInfo:rest) closeList
+  | diffCount nodeInfo == 0 = return nodeInfo
+  | otherwise = buildOpenList openList closeList >>= flip searchNext (nodeInfo:closeList)
 
-    buildOpenList :: (ActionType a, Term b) => [NodeInfo a b] -> [NodeInfo a b] -> [NodeInfo a b]
-    buildOpenList (nodeInfo:rest) closeList = sortBy (compare `on` score) $ mergeNodes rest closeList $ getNextNodes nodeInfo
+buildOpenList :: (ActionType a, Term b) => [NodeInfo a b] -> [NodeInfo a b] -> Reader (Env a b) [NodeInfo a b]
+buildOpenList (nodeInfo:rest) closeList = getNextNodes nodeInfo >>= return . sortBy (compare `on` score) . mergeNodes rest closeList
 
-    -- getNextNodes :: NodeInfo a b -> [NodeInfo a b]
-    getNextNodes nodeInfo = map (buildNodeInfo nodeInfo) $ getActionCandidates domain nodeInfo
+getNextNodes :: (ActionType a, Term b) => NodeInfo a b -> Reader (Env a b) [NodeInfo a b]
+getNextNodes nodeInfo = do
+  domain <- asks envDomain
+  mapM (buildNodeInfo nodeInfo) $ getActionCandidates domain nodeInfo
 
-    buildNodeInfo :: (ActionType a, Term b) => NodeInfo a b -> Action a b -> NodeInfo a b
-    buildNodeInfo nodeInfo action = NodeInfo score rCost diff eCost newCondition action nodeInfo
-      where newCondition = (snd $ getConditionDiff (condition nodeInfo) (postCondition action)) `union` preCondition action
-            (eCost, diff) = getConditionDiff newCondition start
-            rCost = realCost nodeInfo + actionCost action
-            score = rCost + eCost
+buildNodeInfo :: (ActionType a, Term b) => NodeInfo a b -> Action a b -> Reader (Env a b) (NodeInfo a b)
+buildNodeInfo nodeInfo action = do
+  start <- asks envStart
+  let (eCost, diff) = getConditionDiff newCondition start
+      newCondition = snd (getConditionDiff (condition nodeInfo) (postCondition action)) `union` preCondition action
+      rCost = realCost nodeInfo + actionCost action
+      score = rCost + eCost
+  return $ NodeInfo score rCost diff eCost newCondition action nodeInfo
+
+buildGoalNodeInfo :: (ActionType a, Term b) => Reader (Env a b) (NodeInfo a b)
+buildGoalNodeInfo = do
+  start <- asks envStart
+  goal <- asks envGoal
+  let (estimateCost, conditionDiff) = getConditionDiff start goal
+  return $ NodeInfo 0 estimateCost conditionDiff estimateCost goal NoAction NoNodeInfo
 
 getConditionDiff :: (Term b) => [b] -> [b] -> (Int, [b])
 getConditionDiff dest src = let diff = dest \\ src in (length diff, diff)
