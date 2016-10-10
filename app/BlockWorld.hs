@@ -1,6 +1,5 @@
 module Main where
 
-import BlockWorldType
 import Strips
 
 data Block = A | B | C deriving (Show, Eq, Ord, Enum)
