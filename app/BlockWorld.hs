@@ -3,21 +3,20 @@ module Main where
 import BlockWorldType
 import Strips
 
-data Block = A | B  deriving (Show, Eq, Ord, Enum)
--- $(deriveBlock) 
+data Block = A | B | C deriving (Show, Eq, Ord, Enum)
 data Object = Table | Object Block deriving (Eq, Ord, Show)
 
 data BWTerm = HandEmpty
-          | HandHas Block
-          | IsTop Block Bool
-          | On Block Object
-          deriving (Eq, Ord, Show)
+            | HandHas Block
+            | IsTop Block Bool
+            | On Block Object
+            deriving (Eq, Ord, Show)
 
 data BWActionType = Pickup Block
-                | Putdown Block
-                | Stack Block Block
-                | Unstack Block Block
-                deriving (Eq, Show)
+                  | Putdown Block
+                  | Stack Block Block
+                  | Unstack Block Block
+                  deriving (Eq, Show)
 
 instance ActionType BWActionType
 instance Term BWTerm
@@ -25,16 +24,17 @@ instance Term BWTerm
 
 main :: IO ()
 main = do
-  let startCondition = [HandEmpty, IsTop A True, IsTop B False, On A (Object B), On B Table]
-  let goalCondition  = [HandEmpty, IsTop A False, IsTop B True, On B (Object A), On A Table]
+  let startCondition = [HandEmpty, IsTop A True, IsTop B False, IsTop C True, On A (Object B), On B Table, On C Table]
+  let goalCondition  = [HandEmpty, IsTop A False, IsTop B False, IsTop C True, On C (Object B), On B (Object A), On A Table]
   print "------------- domain ----------------"
   mapM_ print buildDomain
-  let plan = strips buildDomain startCondition goalCondition
   print "------------- target ----------------"
-  print startCondition
-  print goalCondition
+  print $ "start: " ++ show startCondition
+  print $ "goal: "  ++ show goalCondition
   print "------------- plan ----------------"
-  mapM_ print plan
+  let nodeInfo = strips buildDomain startCondition goalCondition
+  mapM_ print $ extractPlan nodeInfo
+  print $ "score: " ++ show (score nodeInfo)
   return ()
 
 buildDomain :: [Action BWActionType BWTerm]

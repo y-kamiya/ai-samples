@@ -1,4 +1,11 @@
-module Strips where
+module Strips
+( extractPlan
+, strips
+, ActionType
+, Term
+, Action(..)
+, NodeInfo(..)
+) where
 
 import Data.List ((\\), null, union, sort, sortBy)
 import Data.Function (on)
@@ -21,28 +28,30 @@ data NodeInfo a b = NoNodeInfo
                   | NodeInfo {
                       realCost  :: Int
                     , score     :: Int
-                    , diff      :: [b]
                     , diffCount :: Int
+                    , diff      :: [b]
                     , condition :: [b]
                     , action    :: Action a b
                     , next      :: NodeInfo a b
                     } deriving (Eq, Show)
 
 data Env a b = Env { envDomain :: [Action a b]
-                   , envStart :: [b]
-                   , envGoal :: [b]
+                   , envStart  :: [b]
+                   , envGoal   :: [b]
                    }
-             
 
-strips :: (ActionType a, Term b) => [Action a b] -> [b] -> [b] -> [a]
-strips domain start goal = extractPlan [] $ runReader searchPlan $ Env domain start goal
+extractPlan :: (ActionType a, Term b) => NodeInfo a b -> [a]
+extractPlan = extractPlan' []
+  where
+    extractPlan' :: (ActionType a, Term b) => [a] -> NodeInfo a b -> [a]
+    extractPlan' plan NodeInfo { action = NoAction } = reverse plan
+    extractPlan' plan NodeInfo { action = Action { actionType = actionType}, next = next } = extractPlan' (actionType:plan) next
 
-extractPlan :: (ActionType a, Term b) => [a] -> NodeInfo a b -> [a]
-extractPlan plan NodeInfo { action = NoAction } = reverse plan
-extractPlan plan NodeInfo { action = Action { actionType = actionType}, next = next } = extractPlan (actionType:plan) next
+strips :: (ActionType a, Term b) => [Action a b] -> [b] -> [b] -> NodeInfo a b
+strips domain start goal = runReader search $ Env domain start goal
 
-searchPlan :: (ActionType a, Term b) => Reader (Env a b) (NodeInfo a b)
-searchPlan = buildGoalNodeInfo >>= (\goalNodeInfo -> searchNext [goalNodeInfo] [])
+search :: (ActionType a, Term b) => Reader (Env a b) (NodeInfo a b)
+search = buildGoalNodeInfo >>= (\goalNodeInfo -> searchNext [goalNodeInfo] [])
 
 searchNext :: (ActionType a, Term b) => [NodeInfo a b] -> [NodeInfo a b] -> Reader (Env a b) (NodeInfo a b)
 searchNext [] _ = return NoNodeInfo
@@ -51,7 +60,7 @@ searchNext openList@(nodeInfo:rest) closeList
   | otherwise = buildOpenList openList closeList >>= flip searchNext (nodeInfo:closeList)
 
 buildOpenList :: (ActionType a, Term b) => [NodeInfo a b] -> [NodeInfo a b] -> Reader (Env a b) [NodeInfo a b]
-buildOpenList (nodeInfo:rest) closeList = getNextNodes nodeInfo >>= return . sortBy (compare `on` score) . mergeNodes rest closeList
+buildOpenList (nodeInfo:rest) closeList = return . sortBy (compare `on` score) . mergeNodes rest closeList =<< getNextNodes nodeInfo
 
 getNextNodes :: (ActionType a, Term b) => NodeInfo a b -> Reader (Env a b) [NodeInfo a b]
 getNextNodes nodeInfo = do
@@ -65,14 +74,14 @@ buildNodeInfo nodeInfo action = do
       newCondition = snd (getConditionDiff (condition nodeInfo) (postCondition action)) `union` preCondition action
       rCost = realCost nodeInfo + actionCost action
       score = rCost + eCost
-  return $ NodeInfo score rCost diff eCost newCondition action nodeInfo
+  return $ NodeInfo score rCost eCost diff newCondition action nodeInfo
 
 buildGoalNodeInfo :: (ActionType a, Term b) => Reader (Env a b) (NodeInfo a b)
 buildGoalNodeInfo = do
   start <- asks envStart
   goal <- asks envGoal
   let (estimateCost, conditionDiff) = getConditionDiff start goal
-  return $ NodeInfo 0 estimateCost conditionDiff estimateCost goal NoAction NoNodeInfo
+  return $ NodeInfo 0 estimateCost estimateCost conditionDiff goal NoAction NoNodeInfo
 
 getConditionDiff :: (Term b) => [b] -> [b] -> (Int, [b])
 getConditionDiff dest src = let diff = dest \\ src in (length diff, diff)
@@ -83,7 +92,7 @@ mergeNodes openList closeList newNodes = M.elems $ M.unionWith replaceByConditio
         closeMap   = M.fromList $ map toTuple closeList
         newNodeMap = M.fromList $ map toTuple newNodes
         toTuple nodeInfo = (sort $ condition nodeInfo, nodeInfo)
-        replaceByCondition old new = if score old < score new then old else new
+        replaceByCondition old new = if score old <= score new then old else new
 
 getActionCandidates :: (ActionType a, Term b) => [Action a b] -> NodeInfo a b -> [Action a b]
 getActionCandidates domain nodeInfo = filter include domain
