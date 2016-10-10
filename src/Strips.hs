@@ -74,7 +74,7 @@ buildNodeInfo nodeInfo action = do
       newCondition = snd (getConditionDiff (condition nodeInfo) (postCondition action)) `union` preCondition action
       rCost = realCost nodeInfo + actionCost action
       score = rCost + eCost
-  return $ NodeInfo score rCost eCost diff newCondition action nodeInfo
+  return $ NodeInfo rCost score eCost diff newCondition action nodeInfo
 
 buildGoalNodeInfo :: (ActionType a, Term b) => Reader (Env a b) (NodeInfo a b)
 buildGoalNodeInfo = do
