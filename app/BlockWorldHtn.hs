@@ -1,4 +1,9 @@
-module Htn where
+module Main where
+
+-- import Htn
+
+data Block = A | B | C deriving (Show, Eq, Ord, Enum)
+data Object = Table | Object Block deriving (Eq, Ord, Show)
 
 data PrimitiveTask = Stack Block Block
                    | UnStack Block Block
@@ -54,6 +59,43 @@ execute domain condition task = case M.lookup task (primitiveMap domain) of
                                                   Just (_, condition) -> condition
                                                   Nothing -> []
 
+main :: IO ()
+main = do
+  let startCondition = [HandEmpty, IsTop A True, IsTop B False, IsTop C True, On A (Object B), On B Table, On C Table]
+  let goalCondition  = [HandEmpty, IsTop A False, IsTop B False, IsTop C True, On C (Object B), On B (Object A), On A Table]
+  print "------------- domain ----------------"
+  mapM_ print buildDomain
+  print "------------- target ----------------"
+  print $ "start: " ++ show startCondition
+  print $ "goal: "  ++ show goalCondition
+  print "------------- plan ----------------"
+  let nodeInfo = strips buildDomain startCondition goalCondition
+  mapM_ print $ extractPlan nodeInfo
+  print $ "score: " ++ show (score nodeInfo)
+  return ()
 
+buildDomain :: Domain
+buildDomain = Domain buildPrimitiveMap buildCompountMap
+  where
+    buildPrimitiveMap = M.fromList $ stack ++ unstack ++ putdown ++ pickup
+    pickups  = map (buildDomainPrimitive . Pickup) [A ..]
+    putdowns = map (buildDomainPrimitive . Putdown) [A ..]
+    stacks   = map (buildDomainPrimitive . uncurry Stack) perms
+    unstacks = map (buildDomainPrimitive . uncurry Unstack) perms
+    perms = [(x, y) | x <- [A ..], y <- [A ..], x /= y]
+
+buildDomainPrimitive :: PrimitiveTask -> (PrimitiveTask, [(Condition, Condition)])
+buildDomainPrimitive task@(Pickup x) = (task, [(pre, post)])
+  where pre  = [HandEmpty, IsTop x True, On x Table]
+        post = [HandHas x, IsTop x False]
+buildDomainPrimitive task@(Putdown x) = (task, [(pre, post)])
+  where pre  = [HandHas x, IsTop x False]
+        post = [HandEmpty, IsTop x True, On x Table]
+buildDomainPrimitive task@(Stack x y) = (task, [(pre, post)])
+  where pre  = [HandHas x, IsTop x False, IsTop y True]
+        post = [HandEmpty, IsTop x True, IsTop y False, On x (Object y)]
+buildDomainPrimitive task@(Unstack x y) = (task, [(pre, post)])
+  where pre  = [HandEmpty, IsTop x True, IsTop y False, On x (Object y)]
+        post = [HandHas x, IsTop x False, IsTop y True]
 
 
