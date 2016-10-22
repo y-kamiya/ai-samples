@@ -45,13 +45,6 @@ breakdown domain condition task = case M.lookup task (compoundMap domain) of
                                                     Nothing -> [Invalid]
 -- Conditionが存在しない場合が必要＝otherwise
 -- Matchするconditionを探してそのpost conditionを返す
-
-  | satisfy condition [Hand a, IsTop b True]  = [Put a b]
-  | satisfy condition [Hand a]                = [Clear b, Put a b]
-  | satisfy condition [IsTop a False]         = [Clear a, Move a b]
-  | satisfy condition [IsTop b False] && b /= Table = [Clear b, Move a b]
-  | otherwise                                 = [Get a, Put a b]
-
 execute :: Doamin -> Condition -> PrimitiveTask -> Condition
 execute domain condition task = case M.lookup task (primitiveMap domain) of
                                   Nothing -> []
@@ -97,5 +90,15 @@ buildDomainPrimitive task@(Stack x y) = (task, [(pre, post)])
 buildDomainPrimitive task@(Unstack x y) = (task, [(pre, post)])
   where pre  = [HandEmpty, IsTop x True, IsTop y False, On x (Object y)]
         post = [HandHas x, IsTop x False, IsTop y True]
+
+buildDomainCompound :: CompoundTask -> (CompoundTask, [(Condition, [Task])])
+buildDomainCompound task@(Move x Table) = (task, [ ([], [Get x, Put x Table]) ])
+buildDomainCompound task@(Move x (Object y)) = (task, 
+  [ ([Hand x, IsTop y True] , [Put x y])
+  , ([Hand x]               , [Clear y, Put x y])
+  , ([IsTop x False]        , [Clear x, Move x y])
+  , ([IsTop y False]        , [Clear y, Move x y])
+  , ([]                     , [Get x, Put x y])
+  ])
 
 
