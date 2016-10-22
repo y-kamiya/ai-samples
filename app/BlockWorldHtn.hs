@@ -100,5 +100,15 @@ buildDomainCompound task@(Move x (Object y)) = (task,
   , ([IsTop y False]        , [Clear y, Move x y])
   , ([]                     , [Get x, Put x y])
   ])
+buildDomainCompound task@(Clear x) = (task, map clear [A ..] ++ [([], [])])
+  where clear a = ([IsTop x False, On a x], [Move a Table])
+buildDomainCompound task@(Put x Table) = (task,
+  [ ([HandHas x], [Putdown x])
+  , ([]         , [Invalid])
+  ])
+buildDomainCompound task@(Put x y) = (task,
+  [ ([HandHas x, IsTop y True], [Stack x y])
+  , ([]                       , [Invalid])
+  ])
 
 
