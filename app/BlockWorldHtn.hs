@@ -43,13 +43,13 @@ instance Show Domain where
           toStr = M.foldlWithKey (\str task list -> str ++ "-- " ++ show task ++ "\n" ++ unlines (map show list)) ""
                       
 
-htn :: Domain -> Condition -> [Task] -> [Task]
+htn :: Domain -> Condition -> [Task] -> ([Task], Condition)
 htn domain condition tasks = htn' domain condition tasks []
 
-htn' :: Domain -> Condition -> [Task] -> [Task] -> [Task]
-htn' _ _ [] plan = plan
-htn' domain [] _ plan = plan ++ [Invalid "no condition"]
-htn' domain condition (task@(Invalid _):tasks) plan = plan ++ [task]
+htn' :: Domain -> Condition -> [Task] -> [Task] -> ([Task], Condition)
+htn' _ cond [] plan = (plan, cond)
+htn' domain [] _ plan = (plan ++ [Invalid "no condition"], [])
+htn' domain condition (task@(Invalid _):tasks) plan = (plan ++ [task, Invalid $ "current condition: " ++ show condition], condition)
 htn' domain condition (task@(Primitive pTask):tasks) plan = let newCondition = execute domain condition pTask
                                                       in  htn' domain newCondition tasks $ plan ++ [task]
 htn' domain condition (task@(Compound cTask):tasks) plan = let newTasks = breakdown domain condition cTask
@@ -64,18 +64,17 @@ breakdown domain condition task = case M.lookup task (compoundMap domain) of
                                      Just list -> case find (\(pre, _) -> include condition pre) list of
                                                     Just (_, tasks) -> tasks
                                                     Nothing -> [Invalid $ "no condition is matched, current: " ++ show condition ++ ", task: " ++ show task]
--- Conditionが存在しない場合が必要＝otherwise
--- Matchするconditionを探してそのpost conditionを返す
+
 execute :: Domain -> Condition -> PrimitiveTask -> Condition
 execute domain condition task = case M.lookup task (primitiveMap domain) of
                                   Nothing -> []
                                   Just list -> case find (\(pre, _) -> include condition pre) list of
-                                                  Just (_, condition) -> condition
+                                                  Just (pre, post) -> (condition \\ pre) ++ post
                                                   Nothing -> []
 
 main :: IO ()
 main = do
-  let startCondition = [HandEmpty, IsTop A True, IsTop B False, IsTop C True, On A (Object B), On B Table, On C Table]
+  let startCondition = [HandEmpty, IsTop A True, IsTop B False, IsTop C False, On A (Object B), On B (Object C), On C Table]
   let goalCondition  = [HandEmpty, IsTop A False, IsTop B False, IsTop C True, On C (Object B), On B (Object A), On A Table]
   print "------------- domain ----------------"
   print buildDomain
@@ -83,8 +82,9 @@ main = do
   print $ "start: " ++ show startCondition
   print $ "goal: "  ++ show goalCondition
   print "------------- plan ----------------"
-  let tasks = htn buildDomain startCondition [Compound $ Move C (Object A)]
+  let (tasks, cond) = htn buildDomain startCondition [Compound $ Move A Table, Compound $ Move B (Object A), Compound $ Move C (Object B)]
   mapM_ print tasks
+  print cond
   return ()
 
 buildDomain :: Domain
@@ -131,6 +131,7 @@ buildDomainCompound task@(Clear x) = (task, map clear [A ..] ++ [([], [])])
   where clear a = ([IsTop x False, On a (Object x)], [Compound (Move a Table)])
 buildDomainCompound task@(Get x) = (task, map get [A ..] ++
   [ ([HandEmpty, IsTop x True, On x Table], [Primitive (Pickup x)])
+  , ([HandEmpty, IsTop x False]           , [Compound (Clear x), Compound (Get x)])
   , ([]         , [Invalid $ "cant breakdown " ++ show task])
   ])
   where get a = ([HandEmpty, IsTop x True, On x (Object a)], [Primitive (Unstack x a)])
