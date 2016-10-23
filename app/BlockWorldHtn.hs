@@ -1,51 +1,72 @@
 module Main where
 
 -- import Htn
+import qualified Data.Map as M
+import Data.List (find, null, (\\))
 
 data Block = A | B | C deriving (Show, Eq, Ord, Enum)
 data Object = Table | Object Block deriving (Eq, Ord, Show)
 
+data BWTerm = HandEmpty
+            | HandHas Block
+            | IsTop Block Bool
+            | On Block Object
+            deriving (Eq, Ord, Show)
+
+type Condition = [BWTerm]
+
 data PrimitiveTask = Stack Block Block
-                   | UnStack Block Block
+                   | Unstack Block Block
                    | Putdown Block
                    | Pickup Block
+                   deriving (Eq, Ord, Show)
 
 data CompoundTask = Move Block Object
                   | Clear Block
                   | Get Block
-                  | Put Block
+                  | Put Block Object
+                   deriving (Eq, Ord, Show)
 
 data Task = Primitive PrimitiveTask
           | Compound CompoundTask
-          | Invalid
+          | Invalid String
+          deriving Show
 
 data Domain = Domain {
-                 primitiveMap :: M.Map PrimitiveTask [(Condition, Condition)]
-               , compoundMap :: M.Map CompoundTask [(Condition, [Task])]
-               }
+                primitiveMap :: M.Map PrimitiveTask [(Condition, Condition)]
+              , compoundMap :: M.Map CompoundTask [(Condition, [Task])]
+              }
+
+instance Show Domain where
+  show (Domain p c) = toStr p ++ toStr c
+    where toStr :: (Show a, Show b) => M.Map a [b] -> String
+          toStr = M.foldlWithKey (\str task list -> str ++ "-- " ++ show task ++ "\n" ++ unlines (map show list)) ""
+                      
 
 htn :: Domain -> Condition -> [Task] -> [Task]
 htn domain condition tasks = htn' domain condition tasks []
 
 htn' :: Domain -> Condition -> [Task] -> [Task] -> [Task]
 htn' _ _ [] plan = plan
-htn' domain [] _ plan = plan ++ Invalid
-htn' domain condition (task@(Invalid):tasks) plan = plan ++ task
-htn' domain condition (task@(Primitive):tasks) plan = let newCondition = execute domain condition task
-                                                      in  htn' domain newCondition tasks $ plan ++ task
-htn' domain condition (task@(Compound):tasks) plan = let newTasks = breakdown domain condition task
+htn' domain [] _ plan = plan ++ [Invalid "no condition"]
+htn' domain condition (task@(Invalid _):tasks) plan = plan ++ [task]
+htn' domain condition (task@(Primitive pTask):tasks) plan = let newCondition = execute domain condition pTask
+                                                      in  htn' domain newCondition tasks $ plan ++ [task]
+htn' domain condition (task@(Compound cTask):tasks) plan = let newTasks = breakdown domain condition cTask
                                                      in  htn' domain condition (newTasks ++ tasks) plan
   
+include :: (Ord a) => [a] -> [a] -> Bool
+include cond1 cond2 = null $ cond2 \\ cond1
 
-breakdown :: Doamin -> Condition -> CompoundTask -> [Task]
+breakdown :: Domain -> Condition -> CompoundTask -> [Task]
 breakdown domain condition task = case M.lookup task (compoundMap domain) of
-                                     Nothing -> [Invalid]
+                                     Nothing -> [Invalid $ "definition is not found for " ++ show task]
                                      Just list -> case find (\(pre, _) -> include condition pre) list of
                                                     Just (_, tasks) -> tasks
-                                                    Nothing -> [Invalid]
+                                                    Nothing -> [Invalid $ "no condition is matched, current: " ++ show condition ++ ", task: " ++ show task]
 -- Conditionが存在しない場合が必要＝otherwise
 -- Matchするconditionを探してそのpost conditionを返す
-execute :: Doamin -> Condition -> PrimitiveTask -> Condition
+execute :: Domain -> Condition -> PrimitiveTask -> Condition
 execute domain condition task = case M.lookup task (primitiveMap domain) of
                                   Nothing -> []
                                   Just list -> case find (\(pre, _) -> include condition pre) list of
@@ -57,25 +78,31 @@ main = do
   let startCondition = [HandEmpty, IsTop A True, IsTop B False, IsTop C True, On A (Object B), On B Table, On C Table]
   let goalCondition  = [HandEmpty, IsTop A False, IsTop B False, IsTop C True, On C (Object B), On B (Object A), On A Table]
   print "------------- domain ----------------"
-  mapM_ print buildDomain
+  print buildDomain
   print "------------- target ----------------"
   print $ "start: " ++ show startCondition
   print $ "goal: "  ++ show goalCondition
   print "------------- plan ----------------"
-  let nodeInfo = strips buildDomain startCondition goalCondition
-  mapM_ print $ extractPlan nodeInfo
-  print $ "score: " ++ show (score nodeInfo)
+  let tasks = htn buildDomain startCondition [Compound $ Move C (Object A)]
+  mapM_ print tasks
   return ()
 
 buildDomain :: Domain
-buildDomain = Domain buildPrimitiveMap buildCompountMap
+buildDomain = Domain buildPrimitiveMap buildCompoundMap
   where
-    buildPrimitiveMap = M.fromList $ stack ++ unstack ++ putdown ++ pickup
+    buildPrimitiveMap = M.fromList $ stacks ++ unstacks ++ putdowns ++ pickups
     pickups  = map (buildDomainPrimitive . Pickup) [A ..]
     putdowns = map (buildDomainPrimitive . Putdown) [A ..]
     stacks   = map (buildDomainPrimitive . uncurry Stack) perms
     unstacks = map (buildDomainPrimitive . uncurry Unstack) perms
     perms = [(x, y) | x <- [A ..], y <- [A ..], x /= y]
+
+    buildCompoundMap = M.fromList $ moves ++ clears ++ gets ++ puts
+    clears = map (buildDomainCompound . Clear) [A ..]
+    gets   = map (buildDomainCompound . Get) [A ..]
+    puts   = map (buildDomainCompound . uncurry Put) permsObj
+    moves  = map (buildDomainCompound . uncurry Move) permsObj
+    permsObj = [(x, y) | x <- [A ..], y <- Table:map Object [A ..]]
 
 buildDomainPrimitive :: PrimitiveTask -> (PrimitiveTask, [(Condition, Condition)])
 buildDomainPrimitive task@(Pickup x) = (task, [(pre, post)])
@@ -92,23 +119,26 @@ buildDomainPrimitive task@(Unstack x y) = (task, [(pre, post)])
         post = [HandHas x, IsTop x False, IsTop y True]
 
 buildDomainCompound :: CompoundTask -> (CompoundTask, [(Condition, [Task])])
-buildDomainCompound task@(Move x Table) = (task, [ ([], [Get x, Put x Table]) ])
+buildDomainCompound task@(Move x Table) = (task, [ ([], [Compound (Get x), Compound (Put x Table)]) ])
 buildDomainCompound task@(Move x (Object y)) = (task, 
-  [ ([Hand x, IsTop y True] , [Put x y])
-  , ([Hand x]               , [Clear y, Put x y])
-  , ([IsTop x False]        , [Clear x, Move x y])
-  , ([IsTop y False]        , [Clear y, Move x y])
-  , ([]                     , [Get x, Put x y])
+  [ ([HandHas x, IsTop y True] , [Compound (Put x (Object y))])
+  , ([HandHas x]               , [Compound (Clear y), Compound (Put x (Object y))])
+  , ([IsTop x False]           , [Compound (Clear x), Compound (Move x (Object y))])
+  , ([IsTop y False]           , [Compound (Clear y), Compound (Move x (Object y))])
+  , ([]                        , [Compound (Get x  ), Compound (Put x (Object y))])
   ])
 buildDomainCompound task@(Clear x) = (task, map clear [A ..] ++ [([], [])])
-  where clear a = ([IsTop x False, On a x], [Move a Table])
+  where clear a = ([IsTop x False, On a (Object x)], [Compound (Move a Table)])
+buildDomainCompound task@(Get x) = (task, map get [A ..] ++
+  [ ([HandEmpty, IsTop x True, On x Table], [Primitive (Pickup x)])
+  , ([]         , [Invalid $ "cant breakdown " ++ show task])
+  ])
+  where get a = ([HandEmpty, IsTop x True, On x (Object a)], [Primitive (Unstack x a)])
 buildDomainCompound task@(Put x Table) = (task,
-  [ ([HandHas x], [Putdown x])
-  , ([]         , [Invalid])
+  [ ([HandHas x], [Primitive (Putdown x)])
+  , ([]         , [Invalid $ "cant breakdown " ++ show task])
   ])
-buildDomainCompound task@(Put x y) = (task,
-  [ ([HandHas x, IsTop y True], [Stack x y])
-  , ([]                       , [Invalid])
+buildDomainCompound task@(Put x (Object y)) = (task,
+  [ ([HandHas x, IsTop y True], [Primitive (Stack x y)])
+  , ([]                       , [Invalid $ "cant breakdown " ++ show task])
   ])
-
-

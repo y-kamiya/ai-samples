@@ -1,5 +1,6 @@
 module Htn where
 
+{-
 data PrimitiveTask = Stack Block Block
                    | UnStack Block Block
                    | Putdown Block
@@ -57,3 +58,4 @@ execute domain condition task = case M.lookup task (primitiveMap domain) of
 
 
 
+-}
