@@ -1,61 +1,50 @@
+{-# LANGUAGE LiberalTypeSynonyms #-}
+{-# LANGUAGE RankNTypes #-}
 module Htn where
 
-{-
-data PrimitiveTask = Stack Block Block
-                   | UnStack Block Block
-                   | Putdown Block
-                   | Pickup Block
+import qualified Data.Map as M
+import Data.List (find, null, (\\))
 
-data CompoundTask = Move Block Object
-                  | Clear Block
-                  | Get Block
-                  | Put Block
+class (Eq a, Ord a, Show a) => Term a
+class (Eq a, Ord a, Show a) => PrimitiveTask a
+class (Eq a, Ord a, Show a) => CompoundTask a
 
-data Task = Primitive PrimitiveTask
-          | Compound CompoundTask
-          | Invalid
+data Task a b = Primitive a
+              | Compound b
+              | Invalid String
+              deriving Show
 
-data Domain = Domain {
-                 primitiveMap :: M.Map PrimitiveTask [(Condition, Condition)]
-               , compoundMap :: M.Map CompoundTask [(Condition, [Task])]
-               }
+data Domain a b c = Domain {
+                      primitiveMap :: M.Map a [([c], [c])]
+                    , compoundMap :: M.Map b [([c], [Task a b])]
+                    }
 
-htn :: Domain -> Condition -> [Task] -> [Task]
+htn :: (PrimitiveTask a, CompoundTask b, Term c) => Domain a b c -> [c] -> [Task a b] -> ([Task a b], [c])
 htn domain condition tasks = htn' domain condition tasks []
 
-htn' :: Domain -> Condition -> [Task] -> [Task] -> [Task]
-htn' _ _ [] plan = plan
-htn' domain [] _ plan = plan ++ Invalid
-htn' domain condition (task@(Invalid):tasks) plan = plan ++ task
-htn' domain condition (task@(Primitive):tasks) plan = let newCondition = execute domain condition task
-                                                      in  htn' domain newCondition tasks $ plan ++ task
-htn' domain condition (task@(Compound):tasks) plan = let newTasks = breakdown domain condition task
+htn' :: (PrimitiveTask a, CompoundTask b, Term c) => Domain a b c -> [c] -> [Task a b] -> [Task a b] -> ([Task a b], [c])
+htn' _ cond [] plan = (plan, cond)
+htn' domain [] _ plan = (plan ++ [Invalid "no condition"], [])
+htn' domain condition (task@(Invalid _):tasks) plan = (plan ++ [task, Invalid $ "current condition: " ++ show condition], condition)
+htn' domain condition (task@(Primitive pTask):tasks) plan = let newCondition = execute domain condition pTask
+                                                      in  htn' domain newCondition tasks $ plan ++ [task]
+htn' domain condition (task@(Compound cTask):tasks) plan = let newTasks = breakdown domain condition cTask
                                                      in  htn' domain condition (newTasks ++ tasks) plan
   
+include :: (Ord a) => [a] -> [a] -> Bool
+include cond1 cond2 = null $ cond2 \\ cond1
 
-breakdown :: Doamin -> Condition -> CompoundTask -> [Task]
+breakdown :: (PrimitiveTask a, CompoundTask b, Term c) => Domain a b c -> [c] -> b -> [Task a b]
 breakdown domain condition task = case M.lookup task (compoundMap domain) of
-                                     Nothing -> [Invalid]
+                                     Nothing -> [Invalid $ "definition is not found for " ++ show task]
                                      Just list -> case find (\(pre, _) -> include condition pre) list of
                                                     Just (_, tasks) -> tasks
-                                                    Nothing -> [Invalid]
--- Conditionが存在しない場合が必要＝otherwise
--- Matchするconditionを探してそのpost conditionを返す
+                                                    Nothing -> [Invalid $ "no condition is matched, current: " ++ show condition ++ ", task: " ++ show task]
 
-  | satisfy condition [Hand a, IsTop b True]  = [Put a b]
-  | satisfy condition [Hand a]                = [Clear b, Put a b]
-  | satisfy condition [IsTop a False]         = [Clear a, Move a b]
-  | satisfy condition [IsTop b False] && b /= Table = [Clear b, Move a b]
-  | otherwise                                 = [Get a, Put a b]
-
-execute :: Doamin -> Condition -> PrimitiveTask -> Condition
+execute :: (PrimitiveTask a, Term c) => Domain a b c -> [c] -> a -> [c]
 execute domain condition task = case M.lookup task (primitiveMap domain) of
                                   Nothing -> []
                                   Just list -> case find (\(pre, _) -> include condition pre) list of
-                                                  Just (_, condition) -> condition
+                                                  Just (pre, post) -> (condition \\ pre) ++ post
                                                   Nothing -> []
 
-
-
-
--}
