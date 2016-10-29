@@ -76,17 +76,27 @@ buildDomainPrimitive task@(Unstack x y) = (task, [(pre, post)])
         post = [HandHas x, IsTop x False, IsTop y True]
 
 buildDomainCompound :: BWCompoundTask -> (BWCompoundTask, [(Condition, [Task BWPrimitiveTask BWCompoundTask])])
-buildDomainCompound task@(Move x Table) = (task, [ ([], [Compound (Get x), Compound (Put x Table)]) ])
+buildDomainCompound task@(Move x Table) = (task,
+  [ ([On x Table], [])
+  , ([], [Compound (Get x), Compound (Put x Table)])
+  ])
 buildDomainCompound task@(Move x (Object y)) = (task, 
-  [ ([HandHas x, IsTop y True] , [Compound (Put x (Object y))])
+  [ ([On x (Object y)]         , [])
+  , ([HandHas x, IsTop y True] , [Compound (Put x (Object y))])
   , ([HandHas x]               , [Compound (Clear y), Compound (Put x (Object y))])
   , ([IsTop x False]           , [Compound (Clear x), Compound (Move x (Object y))])
   , ([IsTop y False]           , [Compound (Clear y), Compound (Move x (Object y))])
   , ([]                        , [Compound (Get x  ), Compound (Put x (Object y))])
   ])
-buildDomainCompound task@(Clear x) = (task, map clear [A ..] ++ [([], [])])
+buildDomainCompound task@(Clear x) = (task,
+  [ ([IsTop x True], []) ]
+  ++ map clear [A ..]
+  ++ [([], [])]
+  )
   where clear a = ([IsTop x False, On a (Object x)], [Compound (Move a Table)])
-buildDomainCompound task@(Get x) = (task, map get [A ..] ++
+buildDomainCompound task@(Get x) = (task, 
+  [ ([HandHas x], []) ]
+  ++ map get [A ..] ++
   [ ([HandEmpty, IsTop x True, On x Table], [Primitive (Pickup x)])
   , ([HandEmpty, IsTop x False]           , [Compound (Clear x), Compound (Get x)])
   , ([]         , [Invalid $ "cant breakdown " ++ show task])
