@@ -11,14 +11,15 @@ data Term' = HasTarget Bool
            deriving (Eq, Ord, Show)
 
 data PrimitiveTask' = Melee
+                    | Shot
                     | Reload
                     | MoveToTarget
                     | MoveToShootingPoint
-                    deriving (Eq, Ord, Show)
+                    deriving (Eq, Ord, Enum, Show)
 
 data CompoundTask' = KillTarget
                    | PrepareShooting
-                   deriving (Eq, Ord, Show)
+                   deriving (Eq, Ord, Enum, Show)
 
 type Condition = [Term']
 
@@ -50,7 +51,7 @@ buildDomainPrimitive task@Melee = (task, [(pre, post)])
         post = [HasTarget False, AtTarget False]
 buildDomainPrimitive task@Shot = (task, [(pre, post)])
   where pre  = [HasTarget True, HasAmmo True, CanSeeTarget True]
-        post = [HasTarget False, CanSeeTarget False]
+        post = [HasTarget False, HasAmmo False, CanSeeTarget False]
 buildDomainPrimitive task@Reload = (task, [(pre, post)])
   where pre  = [HasAmmo False, HasMagazine True]
         post = [HasAmmo True, HasMagazine False]
@@ -58,19 +59,19 @@ buildDomainPrimitive task@MoveToTarget = (task, [(pre, post)])
   where pre  = [AtTarget False]
         post = [AtTarget True]
 buildDomainPrimitive task@MoveToShootingPoint = (task, [(pre, post)])
-  where pre  = [HasAmmo True, CanSeeTarget False]
+  where pre  = [CanSeeTarget False]
         post = [CanSeeTarget True]
 
 buildDomainCompound :: CompoundTask' -> (CompoundTask', [(Condition, [Task PrimitiveTask' CompoundTask'])])
-buildDomainCompound task@KillTarget = (task, [
-  ([HasAmmo True],     [Compound PrepareShooting, Primitive Shot])
-, ([HasMagazine True], [Compound PrepareShooting, Primitive Shot])
-, ([AtTarget True],    [Primitive Melee])
-, ([],            [Primitive MoveToTarget, Primitive Melee])
-])
-buildDomainCompound task@PrepareShooting = (task, [
-  ([HasAmmo True, CanSeeTarget True],     [])
-, ([HasAmmo False, HasMagazine True],     [Primitive Reload, Compound PrepareShooting])
-, ([HasAmmo True, CanSeeTarget False], [Primitive MoveToShootingPoint, Compound PrepareShooting])
-, ([], [Invalid "cant prepare shooting"])
-])
+buildDomainCompound task@KillTarget = (task,
+  [ ([HasAmmo True],     [Compound PrepareShooting, Primitive Shot])
+  , ([HasMagazine True], [Compound PrepareShooting, Primitive Shot])
+  , ([AtTarget True],    [Primitive Melee])
+  , ([],            [Primitive MoveToTarget, Primitive Melee])
+  ])
+buildDomainCompound task@PrepareShooting = (task,
+  [ ([HasAmmo True, CanSeeTarget True],     [])
+  , ([HasAmmo False, HasMagazine True],     [Primitive Reload, Compound PrepareShooting])
+  , ([HasAmmo True, CanSeeTarget False], [Primitive MoveToShootingPoint, Compound PrepareShooting])
+  , ([], [Invalid "cant prepare shooting"])
+  ])

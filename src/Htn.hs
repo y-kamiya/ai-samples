@@ -19,6 +19,11 @@ data Domain a b c = Domain {
                     , compoundMap :: M.Map b [([c], [Task a b])]
                     }
 
+instance (Show a, Show b, Show c) => Show (Domain a b c) where
+  show (Domain p c) = toStr p ++ toStr c
+    where toStr :: (Show a, Show b) => M.Map a [b] -> String
+          toStr = M.foldlWithKey (\str task list -> str ++ "-- " ++ show task ++ "\n" ++ unlines (map show list)) ""
+
 htn :: (PrimitiveTask a, CompoundTask b, Term c) => Domain a b c -> [c] -> [Task a b] -> ([Task a b], [c])
 htn domain condition tasks = htn' domain condition tasks []
 
@@ -30,7 +35,7 @@ htn' domain condition (task@(Primitive pTask):tasks) plan = let newCondition = e
                                                       in  htn' domain newCondition tasks $ plan ++ [task]
 htn' domain condition (task@(Compound cTask):tasks) plan = let newTasks = breakdown domain condition cTask
                                                      in  htn' domain condition (newTasks ++ tasks) plan
-  
+
 include :: (Ord a) => [a] -> [a] -> Bool
 include cond1 cond2 = null $ cond2 \\ cond1
 

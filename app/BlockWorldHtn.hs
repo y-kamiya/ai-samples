@@ -30,11 +30,6 @@ instance Term BWTerm
 instance PrimitiveTask BWPrimitiveTask
 instance CompoundTask BWCompoundTask
 
-instance (Show a, Show b, Show c) => Show (Domain a b c) where
-  show (Domain p c) = toStr p ++ toStr c
-    where toStr :: (Show a, Show b) => M.Map a [b] -> String
-          toStr = M.foldlWithKey (\str task list -> str ++ "-- " ++ show task ++ "\n" ++ unlines (map show list)) ""
-                      
 main = do
   let startCondition = [HandEmpty, IsTop A True, IsTop B False, IsTop C False, On A (Object B), On B (Object C), On C Table]
   let goalCondition  = [HandEmpty, IsTop A False, IsTop B False, IsTop C True, On C (Object B), On B (Object A), On A Table]
